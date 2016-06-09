@@ -1,0 +1,150 @@
+
+/*
+ * File: ConnectionManager.java
+ * Author: Kannan Balasubramanian
+ * Creation Date: 03-Aug-2012
+ * Last Updated Date: 06-Aug-2012
+ */
+
+package com.vmware.viclient.connectionmgr;
+
+import java.net.URL;
+import java.util.Vector;
+
+import com.vmware.viclient.ui.LoginDialog;
+import com.vmware.viclient.helper.VimUtil;
+
+import com.vmware.vim25.KernelModuleInfo;
+import com.vmware.vim25.DatastoreSummary;
+import com.vmware.vim25.HostHardwareStatusInfo;
+import com.vmware.vim25.HostHardwareElementInfo;
+import com.vmware.vim25.HostStorageElementInfo;
+import com.vmware.vim25.HostStorageOperationalInfo;
+import com.vmware.vim25.HostSystemHealthInfo;
+import com.vmware.vim25.HostNumericSensorInfo;
+import com.vmware.vim25.HostDiagnosticPartition;
+import com.vmware.vim25.HostCapability;
+import com.vmware.vim25.HostFirewallInfo;
+import com.vmware.vim25.HostFirewallDefaultPolicy;
+import com.vmware.vim25.HostFirewallRuleset;
+import com.vmware.vim25.VimPortType;
+import com.vmware.vim25.ServiceContent;
+import com.vmware.vim25.ManagedObjectReference;
+
+import java.util.HashMap;
+
+public class ConnectionManager {
+	private static ConnectionManager mgr = null;
+	private String serverName = null;
+	private String Esxhost = null;
+	private String username = null;
+	private String password = null;
+	private VimUtil vimUtil = new VimUtil();
+	private ManagedObjectReference mEntity = null;
+
+	private ConnectionManager() {
+
+	}
+
+        public static ConnectionManager getInstance() {
+             if (mgr == null) {
+		 mgr = new ConnectionManager();
+	     }
+	     return mgr;
+	}
+
+	public boolean isServerConnectionAvailable() {
+             return vimUtil.isConnected();
+	}
+
+	public void setEsxHost(String hostname) {
+             Esxhost = hostname;
+	}
+
+	public String getEsxHost() {
+             return Esxhost;
+	}
+
+	public ManagedObjectReference getRootFolder() {
+             return vimUtil.getServiceContent().getRootFolder();
+	}
+
+	public void connect() {
+		try {
+		        LoginDialog dialog = new LoginDialog();
+			//if (
+		} catch (Exception e) {
+			e.printStackTrace();
+		}
+
+	}
+
+	public void reconnect() {
+           try {
+                vimUtil.disconnect();
+                vimUtil.connect(serverName, username, password);
+	   } catch (Exception e) {
+	        System.err.println("Connection failed...");
+	        e.printStackTrace();
+	   }
+	}
+
+	public ServiceContent connect(String servername, String userName, String passwd) throws java.rmi.RemoteException, java.net.MalformedURLException, Exception {
+		System.err.println("Connecting to Server ..." + servername);
+		try {
+	            serverName = servername;
+		    Esxhost = serverName;
+		    username = userName;
+		    password = passwd;
+		    String urlstr = "https://" + serverName + "/sdk/";
+		    System.err.println(serverName + " " + username + " " + password + " " + urlstr);
+		    vimUtil.connect(urlstr, username, password);
+
+		} catch (java.rmi.RemoteException e) {
+			System.err.println("RemoteException : Connection failed...");
+			throw e;
+		} catch (java.net.MalformedURLException e) {
+			System.err.println("MalformedURLException : Connection failed...");
+			throw e;
+		} catch (Exception e) {
+			System.err.println(" Connection failed...");
+			throw e;
+		}
+		return vimUtil.getServiceContent();
+	}
+
+	public VimUtil getVimUtil() {
+		 return vimUtil;
+	}
+	
+	public VimPortType getServiceInstance() {
+		 return vimUtil.getVimPort();
+	}
+
+	public VimPortType getVimPort() {
+		 return vimUtil.getVimPort();
+	}
+
+	public ServiceContent getServiceContent() {
+		 return vimUtil.getServiceContent();
+	}
+
+	public String getServerType() {
+             return vimUtil.getServiceContent().getAbout().getApiType();
+	}
+
+	public void setManagedEntity(ManagedObjectReference entity) {
+              mEntity = entity;
+	}
+	public ManagedObjectReference getManagedEntity() {
+              return mEntity;
+	}
+}
+
+class TableData {
+
+       public Vector colNames = new Vector();
+       public Vector rowData = new Vector();
+
+}
+

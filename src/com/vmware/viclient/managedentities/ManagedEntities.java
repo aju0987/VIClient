@@ -1,0 +1,163 @@
+package com.vmware.viclient.managedentities;
+
+
+import com.vmware.viclient.connectionmgr.ConnectionManager;
+import com.vmware.viclient.ui.graphics.ManagedObject;
+import com.vmware.viclient.ui.graphics.ManagedObjectManager;
+import com.vmware.viclient.helper.VimUtil; //kannan
+
+import com.vmware.vim25.ManagedObjectReference;
+import com.vmware.vim25.ArrayOfManagedObjectReference;
+
+import com.vmware.vim25.AlarmSpec;
+import com.vmware.vim25.AlarmAction;
+import com.vmware.vim25.ServiceContent;
+import com.vmware.vim25.VimPortType;
+
+import java.util.HashMap;
+import java.util.Map;
+import java.util.List;
+import java.util.Vector;
+
+public class ManagedEntities {
+	
+	private ServiceContent inst = null;
+	private VimUtil vimUtil = null;
+	
+	public final String [] entities = {"HostSystem", "Datacenter", "Datastore", "VirtualMachine", "Network", "ResourcePool", "ComputeResource","DistributedVirtualSwitch"};
+	//private String Esxhost = null;
+	ConnectionManager cmgr = ConnectionManager.getInstance();
+	ManagedObject root = null;
+	
+	public ManagedEntities() {
+		
+		//Esxhost = cmgr.getEsxHost();
+		inst=cmgr.getServiceContent();
+                vimUtil = cmgr.getVimUtil();
+	}
+
+	public String [] getAllManagedEntities() {
+		return entities;
+	}
+
+	public void init(ManagedObject parent, int count) {
+	     if (root == null) {
+     	         root = new ManagedObject("Folder", new String[] {"One", "Two"});
+	         ManagedObjectManager.getInstance().add(root);
+	     }
+     	     if (count == 0) return;
+     	     --count;
+     	     for (int i=0; i<5; i++) {
+                  ManagedObject child = new ManagedObject("Test"+i, new String[] {"Prop"+i, "Prop"+(i+1) } );
+      		  if (parent == null) {
+ 		      root.addChild(child);
+										      		  } else {
+ 		      parent.addChild(child);
+      		  }
+ 		  init (child, count);
+             }
+        }
+
+        public ManagedObject loadInventory() {
+             try {
+		     ManagedObjectReference [] entities = vimUtil.getAllEntities();
+		      if (entities == null || entities.length == 0) return null;
+		      HashMap<String, ManagedObject> map = new HashMap<String, ManagedObject>();
+		      ManagedObject root = null;
+		      //System.err.println("entities.length : " + entities.length);
+		      int index = 0;
+		      for (ManagedObjectReference entity : entities) {
+			   //setAlarmAction(entity); //commented by kannan
+			   ManagedObject mObj = new ManagedObject();
+			   ManagedObjectReference parent= vimUtil.getParentMOR(entity);
+			   String curName = (String)vimUtil.getProperty(entity, "name");
+			   if (parent != null) {
+		               mObj.setName(curName + "[" + entity.getValue() + "]");
+			       mObj.setType("[ " + entity.getType() +" ] " );
+			   } else {
+		               mObj.setName(curName + "[" + entity.getValue() + "]");
+			       mObj.setType("[ ROOT: " + entity.getType() +" ] " );
+			   }
+			   mObj.setManagedEntity(entity);
+		           String [] props = new String[3];
+		           props[0] = "Config Status: " + vimUtil.getProperty(entity, "configStatus");
+		           props[1] = "Overall Status: " + vimUtil.getProperty(entity, "overallStatus");
+			   String parentName =  parent == null ? "" : (String)vimUtil.getProperty(parent, "name");
+			   //System.err.println("child-parent - " + curName + " : " + parentName);
+			   /* if (parent != null) {
+			       System.err.println("child-parent MOR - " + entity.getType() + " = " + entity.getValue() +  " : " + parent.getType() + " = " + parent.getValue() + "  [ "  + entity + " ==== " + parent + " ] ");
+			   } */
+		           props[2] = "Parent: " + parentName;
+		           mObj.setProperties(props);
+			   ManagedObjectReference curMOR = entity;
+			   String keyName = entity.getType() + "..." + entity.getValue();
+			   map.put(keyName, mObj);
+			   if (parent != null) {
+			       ManagedObjectReference pMOR = parent;
+			       //System.err.println("cur-parent MOR - " + curMOR + " : "  + pMOR);
+			       String pkeyName = pMOR.getType() + "..." + pMOR.getValue();
+                               if (map.containsKey(pkeyName)) {
+			          // System.err.println("parent Found MOR - " + pMOR.getType() + " = " + pMOR.getValue());
+                                   ManagedObject tobj = map.get(pkeyName);
+				   tobj.addChild(mObj);
+			       } else {
+			          //System.err.println("parent NOT found....");
+			           ManagedObject tObj = new ManagedObject();
+		                   tObj.setName(parentName);
+		                   tObj.setType(" [ " + parent.getType() + " ] ");
+		                   props = new String[3];
+		                   props[0] = "Config Status: " + vimUtil.getProperty(parent, "configStatus");
+		                   props[1] = "Overall Status: " + vimUtil.getProperty(parent, "overallStatus");
+				   ManagedObjectReference pp = vimUtil.getParentMOR(parent);
+			           parentName = pp == null ? "" : pp.getValue();
+		                   props[2] = "Parent: " + parentName;
+		                   tObj.setProperties(props);
+				   tObj.setManagedEntity(parent);
+				   tObj.addChild(mObj);
+			           pkeyName = parent.getType() + "..." + parent.getValue();
+				   map.put(pkeyName, tObj);
+			       }
+			   } else if (root == null) {
+                               root = mObj;
+			       //System.err.println("cur-parent MOR - " + curMOR + " : null " );
+			       ManagedObjectManager.getInstance().add(root);
+			   } else {
+                               //There are multiple roots for whatever reasons
+			       //The code doesn't handle it now
+			       //System.err.println("curMOR: " + curName + " has no parent...");
+			   }
+		      }
+                   return root;
+		  //init(null, 5);
+	     } catch (Exception e) {
+                   e.printStackTrace();
+	     }
+	     return null;
+	}
+
+        public void setAlarmAction(ManagedObjectReference entity) {
+             try {
+                  ManagedObjectReference alarmMgr = inst.getAlarmManager();
+		  if (alarmMgr == null) {
+		      System.err.println("Alarm Manager is null !...");
+                      return;
+		  }
+		  VimPortType vimPort = cmgr.getVimPort();
+	          vimPort.enableAlarmActions(alarmMgr, entity, true);
+		  AlarmSpec spec = new AlarmSpec();
+		  spec.setName(entity.getValue());
+		  spec.setActionFrequency(1000);
+		  spec.setAction(new MAction(entity));
+	     } catch (Exception e) {
+                  e.printStackTrace();
+	     }
+	}
+}
+
+class MAction extends AlarmAction {
+
+   public MAction(ManagedObjectReference entity) {
+         //System.out.println("Alarm action triggered for " + entity.getName());
+ 
+   }
+}
